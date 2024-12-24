@@ -122,7 +122,54 @@ class Ui_MainWindow(object):
 
         self.LoggingTextWig = QPlainTextEdit(self.verticalLayoutWidget)
         self.LoggingTextWig.setObjectName(u"LoggingTextWig")
-        self.LoggingTextWig.setStyleSheet(u"color: rbg(255,255,255);\nbackground-color: rgb(149, 149, 149);\n font: 10pt Arial")
+        self.LoggingTextWig.setStyleSheet("""
+            /* General widget styling */
+            QPlainTextEdit {
+                color: rgb(0, 0, 0);
+                background-color: rgb(149, 149, 149);
+                font: 10pt Arial;
+            }
+
+            /* Vertical scrollbar styling */
+            QScrollBar:vertical {
+                background: transparent;
+                width: 10px;
+                border-radius: 5px;
+            }
+            QScrollBar::handle:vertical {
+                background: #3e3e3e;
+                border-radius: 5px;
+                min-height: 20px;
+            }
+            QScrollBar::add-line:vertical {
+                background: transparent;
+                height: 0px;
+            }
+            QScrollBar::sub-line:vertical {
+                background: transparent;
+                height: 0px;
+            }
+
+            /* Horizontal scrollbar styling */
+            QScrollBar:horizontal {
+                background: transparent;
+                height: 10px;
+                border-radius: 5px;
+            }
+            QScrollBar::handle:horizontal {
+                background: #3e3e3e;
+                border-radius: 5px;
+                min-width: 20px;
+            }
+            QScrollBar::add-line:horizontal {
+                background: transparent;
+                width: 0px;
+            }
+            QScrollBar::sub-line:horizontal {
+                background: transparent;
+                width: 0px;
+            }
+        """)
 
         self.verticalLayout_2.addWidget(self.LoggingTextWig)
 
@@ -163,6 +210,7 @@ class Ui_MainWindow(object):
         self.Dev_Label.setStyleSheet(u"color: gray;\nfont: 700 10px Arial")
         MainWindow.setCentralWidget(self.centralwidget)
 
+ 
 
         self.retranslateUi(MainWindow)
 
@@ -173,7 +221,7 @@ class Ui_MainWindow(object):
     # setupUi
 
     def retranslateUi(self, MainWindow):
-        MainWindow.setWindowTitle(QCoreApplication.translate("Telegram Logo Bot", u"Telegram Logo Bot", None))
+        MainWindow.setWindowTitle(QCoreApplication.translate("TeleLogo", u"TeleLogo", None))
         self.Tokenlabel.setText(QCoreApplication.translate("MainWindow", u"Token", None))
         self.startBotBtn.setText(QCoreApplication.translate("MainWindow", u"Start", None))
         self.stopBotBtn.setText(QCoreApplication.translate("MainWindow", u"Stop", None))
