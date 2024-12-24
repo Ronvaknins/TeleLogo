@@ -366,11 +366,12 @@ def splashScreen():
     splash.setWindowFlag(Qt.FramelessWindowHint)
     splash.show()
        # Show splash for 3 seconds (adjust as needed)
-    QTimer.singleShot(3000, splash.close)  # Close splash after 3000 ms (3 seconds)
+    QTimer.singleShot(2000, splash.close)  # Close splash after 3000 ms (3 seconds)
+
 if __name__ == "__main__":
     app = QApplication(sys.argv)
- 
+    splashScreen()
     main_window = LogoBotApp()
-    #time.sleep(3)
+    time.sleep(2)
     main_window.show()
     sys.exit(app.exec())
