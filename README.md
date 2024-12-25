@@ -53,9 +53,14 @@ TeleLogo is a user-friendly desktop application designed to streamline the proce
    ```bash
    pip install -r requirements.txt
    ```
-
+  
 3. Ensure `ffmpeg` is installed and added to your system PATH.
-   - Download `ffmpeg` from [https://ffmpeg.org/download.html](https://ffmpeg.org/download.html).
+    - Download `ffmpeg` from [https://ffmpeg.org/download.html](https://ffmpeg.org/download.html).
+4. Run TeleLogo_GUI.py
+    ```bash
+   python TeleLogo_GUI.py
+   ```
+   
 
 ## Getting Started
 
