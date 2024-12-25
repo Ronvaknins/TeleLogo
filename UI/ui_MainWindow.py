@@ -207,7 +207,7 @@ class Ui_MainWindow(object):
         self.Dev_Label.setObjectName(u"Dev_Label")
         self.Dev_Label.setGeometry(QRect(384, 550, 271, 21))
         self.Dev_Label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.Dev_Label.setStyleSheet(u"color: gray;\nfont: 700 10px Arial")
+        self.Dev_Label.setStyleSheet(u"color: gray;\nfont: 700 13px Arial")
         MainWindow.setCentralWidget(self.centralwidget)
 
  
