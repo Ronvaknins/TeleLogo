@@ -14,6 +14,10 @@ from telegram import Update
 from telegram.ext import Application as TelegramApplication, MessageHandler, filters, ContextTypes,Updater
 from hachoir.parser import createParser
 from hachoir.metadata import extractMetadata
+import subprocess
+
+# Example usage
+
 
 from UI.ui_MainWindow import Ui_MainWindow
 from UI.ui_LocalServerWidget import Ui_Dialog  
@@ -108,7 +112,7 @@ class LogoBotApp(QMainWindow):
         """Start the Telegram bot."""
         token = self.ui.TokenlineEdit.text().strip()
         if not token:
-            self.append_log("Error: Bot token is required.")
+            self.root_logger.info("Error: Bot token is required.")
             return
 
         self.ui.startBotBtn.setEnabled(False)
@@ -137,9 +141,7 @@ class LogoBotApp(QMainWindow):
         """Run the Telegram bot."""
         try:
             self.event_loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(self.event_loop)
-
-        
+            asyncio.set_event_loop(self.event_loop)   
             if self.localServerEnabled:      
                     builder = TelegramApplication.builder()
                     builder.token(token)
@@ -167,7 +169,7 @@ class LogoBotApp(QMainWindow):
         except RuntimeError as e:
             self.root_logger.info(f"Event Loop Closed {e}")
     
-        #self.root_logger.info("Bot started.")
+        
             
         # Error handler
     async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -222,9 +224,9 @@ class LogoBotApp(QMainWindow):
         for folder in folders:
             if not os.path.exists(folder):
                 os.makedirs(folder)  # Create folder if it doesn't exist
-                print(f"Created folder: {folder}")
+                self.root_logger.info(f"Created folder: {folder}")
             else:
-                print(f"Folder already exists: {folder}")
+                self.root_logger.info(f"Folder already exists: {folder}")
         """Handle incoming video messages."""
         video_file = await update.message.video.get_file()
         file_name = f"Downloads/{video_file.file_id}.mp4"
@@ -232,15 +234,15 @@ class LogoBotApp(QMainWindow):
         await video_file.download_to_drive(file_name)
         output_name = f"Converted/{video_file.file_unique_id}_withLogo.mp4"
 
-        self.append_log(f"Processing video: {file_name}")
+        self.root_logger.info(f"Processing video: {file_name}")
         output_video = self.burn_logo(file_name, output_name)
 
         if output_video:
             await update.message.reply_video(video=open(output_video, 'rb'))
-            self.append_log(f"Processed video sent: {output_video}")
+            self.root_logger.info(f"Processed video sent: {output_video}")
         else:
             await update.message.reply_text("Error processing the video.")
-            self.append_log("Error processing the video.")
+            self.root_logger.info("Error processing the video.")
 
     def burn_logo(self, input_video: str, output_name: str) -> str:
         """Overlay a logo on the video."""
@@ -261,11 +263,10 @@ class LogoBotApp(QMainWindow):
             else:  # Horizontal video
                 final_video = in_file.filter("scale", "1920x1080").overlay(overlay_file, x=self.editLogo.getX(), y=self.editLogo.getY())
 
-            out, err = final_video.output(audio, output_name).run(
-                overwrite_output=True, capture_stdout=True, capture_stderr=True
-            )
-            
-            # Log the FFmpeg output
+            command = (final_video.output(audio, output_name).compile())
+            process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE,creationflags=subprocess.CREATE_NO_WINDOW)
+            out, err = process.communicate()
+            #Log the FFmpeg output
             if out:
                 self.root_logger.info(out.decode('utf-8'))
             if err:
@@ -275,7 +276,6 @@ class LogoBotApp(QMainWindow):
         
         except Exception as e:
             self.root_logger.error(f"Error processing video: {e}")
-            #self.append_log(f"Error processing video: {e}")
             return None
 
     def get_video_resolution(self, file_path: str) -> tuple:
@@ -357,7 +357,9 @@ class LogHandler(logging.Handler):
         except Exception as e:
             print(f"Error in LogHandler.emit: {e}")
 
-def splashScreen():
+
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
     # Create the splash screen with a logo image
     pixmap = QPixmap("./UI/resources/TeleLogo.png")  # Replace with the path to your logo
     pixmap = pixmap.scaled(600, 300, Qt.KeepAspectRatio, Qt.SmoothTransformation)
@@ -367,10 +369,6 @@ def splashScreen():
     splash.show()
        # Show splash for 3 seconds (adjust as needed)
     QTimer.singleShot(2000, splash.close)  # Close splash after 3000 ms (3 seconds)
-
-if __name__ == "__main__":
-    app = QApplication(sys.argv)
-    splashScreen()
     main_window = LogoBotApp()
     time.sleep(2)
     main_window.show()
