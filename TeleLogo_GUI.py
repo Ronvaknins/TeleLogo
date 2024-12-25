@@ -205,12 +205,10 @@ class LogoBotApp(QMainWindow):
             with open("config", "r") as file:
                 global API_HASH,API_ID
                 config = json.load(file)
-                self.ui.TokenlineEdit.setText(config["TOKEN"]),
+                self.ui.TokenlineEdit.setText(config["TOKEN"])
                 API_ID = config["API_ID"] 
                 API_HASH = config["HASH_ID"]
                 self.editLogo.setLogoPath(config["LOGO_PATH"])   
-                # if(config["LOGO_PATH"]):
-                #    self.editLogo.logo_frame.load_image(config["LOGO_PATH"])
                 self.editLogo.setX(config["LogoPosX"])
                 self.editLogo.setY(config["LogoPosY"])          
                 self.editLogo.setScaleFactor(config["LogoScaleFactor"]) 
