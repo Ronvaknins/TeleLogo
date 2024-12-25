@@ -22,10 +22,11 @@ TeleLogo is a user-friendly desktop application designed to streamline the proce
 - **User-Friendly Interface:** Simple and intuitive controls for starting/stopping the bot and editing logo positions.
 - **Logging:** Real-time logs to monitor application activity and debug issues.
 - users cross-platform support since it's using telegram app (Android,OSX,Web...)
-## Releases
-  zip file with executable file ready to run (**ffmpeg with CUDA included**)
-  ## Downloads
 
+  
+## Downloads
+  Zip file with executable file ready to run (**ffmpeg with CUDA included**)
+  
   | File        | Version   | Platform  | Arch      |
   |-------------|-----------|-----------|-----------|
   | [TeleLogo-V1.0.0-x64.zip](https://github.com/Ronvaknins/TeleLogo/releases/download/v1.0.0/TeleLogo-V1.0.0-x64.zip) | 1.0.0     | Windows   | x64 |
