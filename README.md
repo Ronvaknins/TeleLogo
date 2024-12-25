@@ -5,6 +5,7 @@
 # TeleLogo
 <p align="center">
 <img src="https://github.com/user-attachments/assets/15492bf5-0b84-4812-a339-90eaf58973cf" alt="TeleLogo Logo" width="500">
+  <br>
 <img src="https://github.com/user-attachments/assets/c891c7f7-06c1-42d3-8701-c3dd81f6114a" alt="TeleLogo Logo" width="500">
 </p>
 <div style="text-align: center;">
