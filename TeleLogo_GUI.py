@@ -83,12 +83,11 @@ class LogoBotApp(QMainWindow):
         
     def toggle_LocalServer(self):
         self.click_count += 1
-        if self.click_count % 2 == 1:  # Odd clicks
+        if self.click_count % 2 == 1:
             self.ui.startLSbtn.setText("Stop Local Server..")
             self.ui.startLSbtn.setStyleSheet(""" QPushButton { background-color: rgb(207, 75, 77); color: white; font: 700 Arial; border-radius: 10px; padding: 5px 15px; } """)
             exe_path = "./bot-server/telegram-bot-api/bin/telegram-bot-api.exe"
-            self.root_logger.info(exe_path)
-            arguments = ["--local", f"--api-id={API_ID}", f"--api-hash={API_HASH}"]
+            arguments = ["--verbosity=4","--local", f"--api-id={API_ID}", f"--api-hash={API_HASH}",]
             run_exe_as_thread(exe_path, arguments)
             self.localServerEnabled = True
             self.root_logger.info("Local Server started successfully.")
@@ -179,7 +178,7 @@ class LogoBotApp(QMainWindow):
 
     def closeEvent(self, event):
         #Override closeEvent
-        if LS_PROCESS:
+        if self.localServerEnabled:
             try:
                 self.stop_bot()
                 LS_PROCESS.terminate()        
@@ -193,6 +192,9 @@ class LogoBotApp(QMainWindow):
             self.stop_bot()
         self.save_config()
         event.accept()
+
+
+
     def save_config(self):
         """Save config to a file."""
         try:
@@ -279,6 +281,8 @@ class LogoBotApp(QMainWindow):
                 )
             else:  # Horizontal video
                 final_video = in_file.filter("scale", "1920x1080").overlay(overlay_file, x=self.editLogo.getX(), y=self.editLogo.getY())
+
+
             if hasAudio:
                 command = (final_video.output(in_file.audio, output_name).compile(overwrite_output=True))
             else:
@@ -323,7 +327,7 @@ class SettingsDialog(QDialog):
         API_HASH = self.ui.HASH_Edit.text()
         #print(API_HASH,API_ID)
 
-def run_exe_as_thread(exe_path, args=None):
+def run_exe_as_thread(self,exe_path, args=None):
     def run():
         try:
             # Build the command with arguments
@@ -334,6 +338,14 @@ def run_exe_as_thread(exe_path, args=None):
             process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE,creationflags=subprocess.CREATE_NO_WINDOW)     
             global LS_PROCESS
             LS_PROCESS = process
+            out, err = process.communicate()
+
+            
+            #Log the FFmpeg output
+            if out:
+                logger.info(out.decode('utf-8'))
+            if err:
+                logger.error(err.decode('utf-8'))
             # Save the process to be able to terminate it later
             #return process
         except Exception as e:
