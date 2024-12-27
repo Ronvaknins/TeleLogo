@@ -293,19 +293,7 @@ class LogoBotApp(QMainWindow):
             self.root_logger.error(f"Error processing video: {e}")
             return None
 
-    def get_video_resolution(self, file_path: str) -> tuple:
-        """Get the resolution of a video."""
-        parser = createParser(file_path)
-        if not parser:
-            raise ValueError(f"Could not open file {file_path}")
 
-        metadata = extractMetadata(parser)
-        if not metadata:
-            raise ValueError(f"Could not extract metadata from {file_path}")
-
-        width = metadata.get("width")
-        height = metadata.get("height")
-        return width, height
 
 class SettingsDialog(QDialog):
     def __init__(self, parent=None):
@@ -359,7 +347,7 @@ def resource_path():
         base_path = Path(sys._MEIPASS)
     except AttributeError:
         # For development, use the current directory
-        base_path = Path("C:/DEV/TelegramLogoBot/")
+        base_path = Path(".")
 
     # Use the / operator to concatenate paths
     return base_path
