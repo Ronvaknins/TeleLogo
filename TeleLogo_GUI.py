@@ -9,7 +9,7 @@ import json
 from PySide6.QtWidgets import QApplication, QMainWindow, QDialog, QMainWindow, QMessageBox,QPlainTextEdit,QSplashScreen
 from PySide6.QtCore import QMetaObject,Qt,QTimer
 from PySide6.QtGui import QTextCursor,QPixmap
-import signal
+from pathlib import Path
 from telegram import Update
 from telegram.ext import Application as TelegramApplication, MessageHandler, filters, ContextTypes,Updater
 from hachoir.parser import createParser
@@ -39,7 +39,8 @@ class LogoBotApp(QMainWindow):
         self.ui.setupUi(self)
 
         self.click_count = 0
-
+        # self.resources_path = resource_path()
+        # print(type(self.resources_path))
         # Connect buttons
         self.ui.startBotBtn.clicked.connect(self.start_bot)
         self.ui.stopBotBtn.clicked.connect(self.stop_bot)
@@ -48,7 +49,7 @@ class LogoBotApp(QMainWindow):
         self.ui.startLSbtn.clicked.connect(self.toggle_LocalServer)
 
         self.ui.editLogoBtn.clicked.connect(self.onClickEditLogo)
-        self.editLogo = EditLogoW.LogoEditWindow()
+        self.editLogo = EditLogoW.LogoEditWindow(resource_path())
        
         # Initialize bot variables
         self.bot_thread = None
@@ -67,9 +68,11 @@ class LogoBotApp(QMainWindow):
         text_handler = LogHandler(self.ui.LoggingTextWig)
         self.root_logger.addHandler(text_handler)
         self.root_logger.info("Application started.")
+        
         self.load_config()
         self.editLogo.trigger_saveToConfigFile.connect(self.save_config)
         self.editLogo.trigger_LoadConfigFile.connect(self.load_config)
+       
        
     def onClickEditLogo(self):
         self.editLogo.show()
@@ -80,8 +83,9 @@ class LogoBotApp(QMainWindow):
         if self.click_count % 2 == 1:  # Odd clicks
             self.ui.startLSbtn.setText("Stop Local Server..")
             self.ui.startLSbtn.setStyleSheet(""" QPushButton { background-color: rgb(207, 75, 77); color: white; font: 700 Arial; border-radius: 10px; padding: 5px 15px; } """)
-            exe_path = r"bot-server/telegram-bot-api/bin/telegram-bot-api.exe"
-            arguments = ["--local", f"--api-id={API_ID}", f"--api-hash={API_HASH}","--dir=temp"]
+            exe_path = "./bot-server/telegram-bot-api/bin/telegram-bot-api.exe"
+            self.root_logger.info(exe_path)
+            arguments = ["--local", f"--api-id={API_ID}", f"--api-hash={API_HASH}"]
             run_exe_as_thread(exe_path, arguments)
             self.localServerEnabled = True
             self.root_logger.info("Local Server started successfully.")
@@ -245,12 +249,23 @@ class LogoBotApp(QMainWindow):
     def burn_logo(self, input_video: str, output_name: str) -> str:
         """Overlay a logo on the video."""
         try:
-            w, h = self.get_video_resolution(input_video)
+
+            w, h = None,None
             in_file = ffmpeg.input(input_video)
-            
+            probe = ffmpeg.probe(input_video)
+            streams = probe.get('streams', [])
+            #print(any(stream.get('codec_type') == 'audio' for stream in streams))
+            hasAudio = False
+            for stream in streams:
+                if stream.get('width'):
+                    w = int(stream.get('width'))
+                if stream.get('height'):
+                    h = int(stream.get('height'))
+                if stream.get('codec_type') == 'audio':
+                    hasAudio = True 
             scaleFactor = self.editLogo.getScaleFactor()*2
             overlay_file = ffmpeg.input(self.editLogo.getLogoPath()).filter("scale", f"iw*{scaleFactor}", f"ih*{scaleFactor}")
-            audio = in_file.audio
+           
 
             if w / h < 1:  # Vertical video
                 blurred_video = in_file.filter("scale", "1920x1080").filter("boxblur", 20)
@@ -260,8 +275,10 @@ class LogoBotApp(QMainWindow):
                 )
             else:  # Horizontal video
                 final_video = in_file.filter("scale", "1920x1080").overlay(overlay_file, x=self.editLogo.getX(), y=self.editLogo.getY())
-
-            command = (final_video.output(audio, output_name).compile())
+            if hasAudio:
+                command = (final_video.output(in_file.audio, output_name).compile())
+            else:
+                command = (final_video.output(output_name).compile())
             process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE,creationflags=subprocess.CREATE_NO_WINDOW)
             out, err = process.communicate()
             #Log the FFmpeg output
@@ -335,6 +352,17 @@ def run_exe_as_thread(exe_path, args=None):
     thread.start()
     #return thread # Return the process object to interact with it
 
+def resource_path():
+    """ Get the absolute path to a resource, works for dev and PyInstaller """
+    try:
+        # PyInstaller's _MEIPASS provides the base path for bundled files
+        base_path = Path(sys._MEIPASS)
+    except AttributeError:
+        # For development, use the current directory
+        base_path = Path("C:/DEV/TelegramLogoBot/")
+
+    # Use the / operator to concatenate paths
+    return base_path
 
 class LogHandler(logging.Handler):
     def __init__(self, text_edit):
@@ -357,17 +385,19 @@ class LogHandler(logging.Handler):
 
 
 if __name__ == "__main__":
+ 
     app = QApplication(sys.argv)
     # Create the splash screen with a logo image
-    pixmap = QPixmap("./UI/resources/TeleLogo.png")  # Replace with the path to your logo
+    pixmap = QPixmap(str(resource_path() / "UI/resources/TeleLogo.png"))  # Replace with the path to your logo
     pixmap = pixmap.scaled(600, 300, Qt.KeepAspectRatio, Qt.SmoothTransformation)
     splash = QSplashScreen(pixmap, Qt.WindowStaysOnTopHint)
     splash.setStyleSheet("background-color: rgb(31,31,31);")
     splash.setWindowFlag(Qt.FramelessWindowHint)
     splash.show()
-       # Show splash for 3 seconds (adjust as needed)
-    QTimer.singleShot(2000, splash.close)  # Close splash after 3000 ms (3 seconds)
+    # Show splash for 2 seconds (adjust as needed)
+    QTimer.singleShot(2000, splash.close)  # Close splash after 2000 ms (2 seconds)
     main_window = LogoBotApp()
     time.sleep(2)
     main_window.show()
     sys.exit(app.exec())
+

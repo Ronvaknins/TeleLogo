@@ -2,5 +2,6 @@
   <qresource prefix="ui_img">
     <file>settings_.png</file>
     <file>icon.png</file>
+    <file>SMPTE_COLOR_BAR960540.jpg</file>
   </qresource>
 </RCC>

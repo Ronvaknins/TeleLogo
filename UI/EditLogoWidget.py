@@ -1,3 +1,4 @@
+from pathlib import Path
 from PySide6.QtWidgets import QApplication, QMainWindow, QFrame,QPushButton,QFileDialog,QDialogButtonBox
 from PySide6.QtCore import Qt, QPoint,QRect,Signal
 from PySide6.QtGui import QPixmap, QPainter, QWheelEvent,QColor,QShowEvent
@@ -131,16 +132,18 @@ class LogoFrame(QFrame):
 class LogoEditWindow(QMainWindow):
     trigger_saveToConfigFile = Signal()
     trigger_LoadConfigFile = Signal()
-    def __init__(self):
+    def __init__(self,resource_path):
         super().__init__()
         self.ui = Ui_LogoEditWindow()
         self.ui.setupUi(self)
         self.ui.safeMargCB.setParent(self)
-        
+
         # Replace the frame from Designer with a LogoFrame
         self.logo_frame = LogoFrame(self.ui.video_frame, self.ui.safeMargCB)
         self.logo_frame.setGeometry(self.ui.video_frame.geometry())
-        self.logo_frame.setStyleSheet("background-image: url(./UI/resources/SMPTE_COLOR_BAR960540.jpg);")
+        self.bars_img = (resource_path / "UI/resources/SMPTE_COLOR_BAR960540.jpg").as_posix()
+
+        self.logo_frame.setStyleSheet(f"background-image: url({self.bars_img});")
         self.logo_frame.setParent(self)
         
 
