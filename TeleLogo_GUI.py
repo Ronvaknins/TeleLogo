@@ -12,25 +12,22 @@ from PySide6.QtGui import QTextCursor,QPixmap
 from pathlib import Path
 from telegram import Update
 from telegram.ext import Application as TelegramApplication, MessageHandler, filters, ContextTypes,Updater
-from hachoir.parser import createParser
-from hachoir.metadata import extractMetadata
 import subprocess
-
-# Example usage
-
-
+import traceback
 from UI.ui_MainWindow import Ui_MainWindow
 from UI.ui_LocalServerWidget import Ui_Dialog  
 import subprocess
 import UI.EditLogoWidget as EditLogoW
+
 # Configure logging
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 
 API_ID = ""
 API_HASH = ""
 LS_PROCESS = None
+
 
 class LogoBotApp(QMainWindow):
     def __init__(self):
@@ -39,8 +36,7 @@ class LogoBotApp(QMainWindow):
         self.ui.setupUi(self)
 
         self.click_count = 0
-        # self.resources_path = resource_path()
-        # print(type(self.resources_path))
+
         # Connect buttons
         self.ui.startBotBtn.clicked.connect(self.start_bot)
         self.ui.stopBotBtn.clicked.connect(self.stop_bot)
@@ -72,6 +68,13 @@ class LogoBotApp(QMainWindow):
         self.load_config()
         self.editLogo.trigger_saveToConfigFile.connect(self.save_config)
         self.editLogo.trigger_LoadConfigFile.connect(self.load_config)
+        folders = ["Downloads", "Converted"]
+        for folder in folders:
+            if not os.path.exists(folder):
+                os.makedirs(folder)  # Create folder if it doesn't exist
+                self.root_logger.info(f"Created folder: {folder}")
+            else:
+                self.root_logger.info(f"Folder already exists: {folder}")
        
        
     def onClickEditLogo(self):
@@ -120,7 +123,9 @@ class LogoBotApp(QMainWindow):
         self.bot_thread.start()
 
     def stop_bot(self):
-        """Stop the Telegram bot."""  
+        """
+        Stop the Telegram bot.
+        """  
         #self.telegram_app.stop()   
         if self.telegram_app and self.event_loop: 
 
@@ -173,7 +178,19 @@ class LogoBotApp(QMainWindow):
         self.root_logger.warning(f"Update {update} caused error {context.error}")
 
     def closeEvent(self, event):
-        #Override closeEvent to save config on exit.
+        #Override closeEvent
+        if LS_PROCESS:
+            try:
+                self.stop_bot()
+                LS_PROCESS.terminate()        
+                self.localServerEnabled = False
+                self.ui.startLSbtn.setText("Start Local Server")
+                self.ui.startLSbtn.setStyleSheet(""" QPushButton { background-color: rgb(12,129,213); color: white; font: 700 Arial; border-radius: 10px; padding: 5px 15px; } """)    
+                self.root_logger.info("Local Server Process terminated successfully.")
+            except Exception as e:
+                self.root_logger.error(f"Error while killing the process: {e}")
+        else:
+            self.stop_bot()
         self.save_config()
         event.accept()
     def save_config(self):
@@ -215,19 +232,13 @@ class LogoBotApp(QMainWindow):
             self.root_logger.info("No valid config file found. Using default config.")
 
     async def video_handler(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        folders = ["Downloads", "Converted"]
-        for folder in folders:
-            if not os.path.exists(folder):
-                os.makedirs(folder)  # Create folder if it doesn't exist
-                self.root_logger.info(f"Created folder: {folder}")
-            else:
-                self.root_logger.info(f"Folder already exists: {folder}")
         """Handle incoming video messages."""
         video_file = await update.message.video.get_file()
         file_name = f"Downloads/{video_file.file_id}.mp4"
 
         await video_file.download_to_drive(file_name)
         output_name = f"Converted/{video_file.file_unique_id}_withLogo.mp4"
+ 
 
         self.root_logger.info(f"Processing video: {file_name}")
         output_video = self.burn_logo(file_name, output_name)
@@ -269,11 +280,13 @@ class LogoBotApp(QMainWindow):
             else:  # Horizontal video
                 final_video = in_file.filter("scale", "1920x1080").overlay(overlay_file, x=self.editLogo.getX(), y=self.editLogo.getY())
             if hasAudio:
-                command = (final_video.output(in_file.audio, output_name).compile())
+                command = (final_video.output(in_file.audio, output_name).compile(overwrite_output=True))
             else:
-                command = (final_video.output(output_name).compile())
+                command = (final_video.output(output_name).compile(overwrite_output=True))
             process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE,creationflags=subprocess.CREATE_NO_WINDOW)
             out, err = process.communicate()
+
+            
             #Log the FFmpeg output
             if out:
                 self.root_logger.info(out.decode('utf-8'))
@@ -285,8 +298,6 @@ class LogoBotApp(QMainWindow):
         except Exception as e:
             self.root_logger.error(f"Error processing video: {e}")
             return None
-
-
 
 class SettingsDialog(QDialog):
     def __init__(self, parent=None):
@@ -312,7 +323,6 @@ class SettingsDialog(QDialog):
         API_HASH = self.ui.HASH_Edit.text()
         #print(API_HASH,API_ID)
 
-
 def run_exe_as_thread(exe_path, args=None):
     def run():
         try:
@@ -327,7 +337,7 @@ def run_exe_as_thread(exe_path, args=None):
             # Save the process to be able to terminate it later
             #return process
         except Exception as e:
-            print(f"Error: {e}")
+            logger.info(f"Error: {e}")
     # Create and start a thread
     thread = threading.Thread(target=run)
     thread.start()
@@ -366,22 +376,31 @@ class LogHandler(logging.Handler):
 
 
 if __name__ == "__main__":
- 
     
-    app = QApplication(sys.argv)
-    # Create the splash screen with a logo image
-    # pixmap = QPixmap(str(resource_path() / "UI/resources/TeleLogo.png"))  # Replace with the path to your logo
-    # pixmap = pixmap.scaled(600, 300, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-    # splash = QSplashScreen(pixmap, Qt.WindowStaysOnTopHint)
-    # splash.setStyleSheet("background-color: rgb(31,31,31);")
-    # splash.setWindowFlag(Qt.FramelessWindowHint)
-    # splash.show()
-    # # Show splash for 2 seconds (adjust as needed)
-    # QTimer.singleShot(2000, splash.close)  # Close splash after 2000 ms (2 seconds)
-    main_window = LogoBotApp()
-    #time.sleep(2)
-    main_window.show()
+    try:
 
-    sys.exit(app.exec())
+        app = QApplication(sys.argv)
+        #Create the splash screen with a logo image
+        pixmap = QPixmap(str(resource_path() / "UI/resources/TeleLogo600.png"))  # Replace with the path to your logo
+        splash = QSplashScreen(pixmap, Qt.WindowStaysOnTopHint)
+        splash.setWindowFlag(Qt.FramelessWindowHint)
+        splash.show()
+        # Show splash for 2 seconds (adjust as needed)
+        QTimer.singleShot(2000, splash.close)  # Close splash after 2000 ms (2 seconds)
+        main_window = LogoBotApp()
+        time.sleep(2)
+        main_window.show()
+
+        sys.exit(app.exec())
+
+    except Exception as e:
+
+        logging.error("An error occurred:", exc_info=True)
+        # Catch any exception that occurs during the application setup or execution
+        print("An error occurred:", e)
+        # Optionally, log the traceback
+        traceback.print_exc()
+        # Exit the application with a non-zero status to indicate an error
+        sys.exit(1)
     
 
