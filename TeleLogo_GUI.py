@@ -18,9 +18,9 @@ from UI.ui_MainWindow import Ui_MainWindow
 from UI.ui_LocalServerWidget import Ui_Dialog  
 import subprocess
 import UI.EditLogoWidget as EditLogoW
-
+DEBUG=True
 # Configure logging
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.DEBUG)
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.DEBUG if DEBUG else logging.INFO)
 logger = logging.getLogger(__name__)
 
 
@@ -87,7 +87,9 @@ class LogoBotApp(QMainWindow):
             self.ui.startLSbtn.setText("Stop Local Server..")
             self.ui.startLSbtn.setStyleSheet(""" QPushButton { background-color: rgb(207, 75, 77); color: white; font: 700 Arial; border-radius: 10px; padding: 5px 15px; } """)
             exe_path = "./bot-server/telegram-bot-api/bin/telegram-bot-api.exe"
-            arguments = ["--verbosity=4","--local", f"--api-id={API_ID}", f"--api-hash={API_HASH}",]
+            global DEBUG
+            arguments = ["--verbosity=4" if DEBUG else "--local","--local", f"--api-id={API_ID}", f"--api-hash={API_HASH}",]
+
             run_exe_as_thread(exe_path, arguments)
             self.localServerEnabled = True
             self.root_logger.info("Local Server started successfully.")
@@ -192,8 +194,6 @@ class LogoBotApp(QMainWindow):
             self.stop_bot()
         self.save_config()
         event.accept()
-
-
 
     def save_config(self):
         """Save config to a file."""
@@ -327,7 +327,7 @@ class SettingsDialog(QDialog):
         API_HASH = self.ui.HASH_Edit.text()
         #print(API_HASH,API_ID)
 
-def run_exe_as_thread(self,exe_path, args=None):
+def run_exe_as_thread(exe_path, args=None):
     def run():
         try:
             # Build the command with arguments
