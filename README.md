@@ -74,7 +74,7 @@ TeleLogo is a user-friendly desktop application designed to streamline the proce
 6. The bot will process the video, add the logo, and send it back.
 
 ### Running Locally
-
+**NOTE: local server runs on port 8081 make sure it's avilable**
 1. Obtain your `app_id` and `hash_id` from [Telegram's Developer Console](https://my.telegram.org/apps).
 2. Configure the application with these credentials.
 3. Add and Position your logo by clicking the "Edit Logo" (preferably a transpernt PNG)
@@ -120,6 +120,7 @@ The application provides a logging window to display real-time events, such as:
 - [Telegram Bot Python Warpper](https://python-telegram-bot.org/)
 - [ffmpeg](https://www.ffmpeg.org/)
 - [ffmpeg python package](https://github.com/kkroening/ffmpeg-python)
+- [pyinstaller](https://pyinstaller.org/)
   
 **Developed by Ron Vaknin. Feel free to contribute to the project by submitting issues or pull requests on GitHub.**
 
