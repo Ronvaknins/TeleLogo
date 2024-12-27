@@ -103,14 +103,7 @@ class LogoBotApp(QMainWindow):
     def open_settings(self):
         dialog = SettingsDialog(self)  # Open the settings dialog
         if dialog.exec() == QDialog.DialogCode.Accepted:
-            print(f"Bot Token: {dialog.ui.API_ID_Edit.text()}")  # For example, use the entered token
-
-    def append_log(self, message):
-        """Append a log message to the QTextEdit widget."""
-        self.ui.LoggingTextWig.appendPlainText(message)
-        cursor = self.ui.LoggingTextWig.textCursor()
-        cursor.movePosition(QTextCursor.End)
-        self.ui.LoggingTextWig.setTextCursor(cursor)
+            self.root_logger.info(f"Bot Token: {dialog.ui.API_ID_Edit.text()}")  # For example, use the entered token
 
     def start_bot(self):
         """Start the Telegram bot."""
@@ -176,8 +169,8 @@ class LogoBotApp(QMainWindow):
         
             
         # Error handler
-    async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        logger.warning(f"Update {update} caused error {context.error}")
+    async def error_handler(self,update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        self.root_logger.warning(f"Update {update} caused error {context.error}")
 
     def closeEvent(self, event):
         #Override closeEvent to save config on exit.
@@ -374,18 +367,21 @@ class LogHandler(logging.Handler):
 
 if __name__ == "__main__":
  
+    
     app = QApplication(sys.argv)
     # Create the splash screen with a logo image
-    pixmap = QPixmap(str(resource_path() / "UI/resources/TeleLogo.png"))  # Replace with the path to your logo
-    pixmap = pixmap.scaled(600, 300, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-    splash = QSplashScreen(pixmap, Qt.WindowStaysOnTopHint)
-    splash.setStyleSheet("background-color: rgb(31,31,31);")
-    splash.setWindowFlag(Qt.FramelessWindowHint)
-    splash.show()
-    # Show splash for 2 seconds (adjust as needed)
-    QTimer.singleShot(2000, splash.close)  # Close splash after 2000 ms (2 seconds)
+    # pixmap = QPixmap(str(resource_path() / "UI/resources/TeleLogo.png"))  # Replace with the path to your logo
+    # pixmap = pixmap.scaled(600, 300, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+    # splash = QSplashScreen(pixmap, Qt.WindowStaysOnTopHint)
+    # splash.setStyleSheet("background-color: rgb(31,31,31);")
+    # splash.setWindowFlag(Qt.FramelessWindowHint)
+    # splash.show()
+    # # Show splash for 2 seconds (adjust as needed)
+    # QTimer.singleShot(2000, splash.close)  # Close splash after 2000 ms (2 seconds)
     main_window = LogoBotApp()
-    time.sleep(2)
+    #time.sleep(2)
     main_window.show()
+
     sys.exit(app.exec())
+    
 
