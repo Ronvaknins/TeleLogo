@@ -1,5 +1,6 @@
 import os
 import logging
+import shutil
 import time
 import ffmpeg
 import threading
@@ -7,23 +8,24 @@ import asyncio
 import sys
 import json
 from PySide6.QtWidgets import QApplication, QMainWindow, QDialog, QMainWindow, QMessageBox,QPlainTextEdit,QSplashScreen
-from PySide6.QtCore import QMetaObject,Qt,QTimer
+from PySide6.QtCore import QMetaObject,Qt,QTimer,Signal,QThread
 from PySide6.QtGui import QTextCursor,QPixmap
 from pathlib import Path
+import psutil
 from telegram import Update
-from telegram.ext import Application as TelegramApplication, MessageHandler, filters, ContextTypes,Updater
+import httpx
+#from telegram.ext import Application as TelegramApplication, MessageHandler, filters, ContextTypes,Updater
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler,filters
 import subprocess
 import traceback
 from UI.ui_MainWindow import Ui_MainWindow
 from UI.ui_LocalServerWidget import Ui_Dialog  
 import subprocess
 import UI.EditLogoWidget as EditLogoW
-DEBUG=True
-# Configure logging
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.DEBUG if DEBUG else logging.INFO)
-logger = logging.getLogger(__name__)
 
 
+
+DEBUG=False
 API_ID = ""
 API_HASH = ""
 LS_PROCESS = None
@@ -36,7 +38,7 @@ class LogoBotApp(QMainWindow):
         self.ui.setupUi(self)
 
         self.click_count = 0
-
+        
         # Connect buttons
         self.ui.startBotBtn.clicked.connect(self.start_bot)
         self.ui.stopBotBtn.clicked.connect(self.stop_bot)
@@ -49,18 +51,14 @@ class LogoBotApp(QMainWindow):
        
         # Initialize bot variables
         self.bot_thread = None
+        self.localServer_thread = None
         self.telegram_app = None
-        self.event_loop = None
         self.localServerEnabled = False
-        self.LS_process = None
-    
         self.ui.LoggingTextWig.setReadOnly(True)
 
 
-       
         self.root_logger = logging.getLogger()
-       
-       
+           
         text_handler = LogHandler(self.ui.LoggingTextWig)
         self.root_logger.addHandler(text_handler)
         self.root_logger.info("Application started.")
@@ -75,8 +73,18 @@ class LogoBotApp(QMainWindow):
                 self.root_logger.info(f"Created folder: {folder}")
             else:
                 self.root_logger.info(f"Folder already exists: {folder}")
-       
-       
+        self.clean_dir("LSDIR")
+        
+    def clean_dir(self,path):
+        try:
+            if os.path.exists(path):
+                shutil.rmtree(path)
+                self.root_logger.info(f"Folder '{path}' removed successfully.")
+            else:
+                self.root_logger.info(f"Folder '{path}' does not exist.")
+        except OSError as e:
+            self.root_logger.error(f"Error removing folder '{path}': {e}")
+
     def onClickEditLogo(self):
         self.editLogo.show()
 
@@ -88,16 +96,18 @@ class LogoBotApp(QMainWindow):
             self.ui.startLSbtn.setStyleSheet(""" QPushButton { background-color: rgb(207, 75, 77); color: white; font: 700 Arial; border-radius: 10px; padding: 5px 15px; } """)
             exe_path = "./bot-server/telegram-bot-api/bin/telegram-bot-api.exe"
             global DEBUG
-            arguments = ["--verbosity=4" if DEBUG else "--local","--local", f"--api-id={API_ID}", f"--api-hash={API_HASH}",]
+            arguments = ["--verbosity=4" if DEBUG else "--local","--local", f"--api-id={API_ID}", f"--api-hash={API_HASH}","--temp-dir=LS_temp","--dir=LSDIR"]
 
-            run_exe_as_thread(exe_path, arguments)
+            self.run_exe_as_thread(exe_path, arguments)
             self.localServerEnabled = True
             self.root_logger.info("Local Server started successfully.")
         else: 
             try:
-                self.stop_bot()
+                if self.bot_thread:
+                    self.stop_bot()
                 LS_PROCESS.terminate()        
                 self.localServerEnabled = False
+                self.localServer_thread.join()
                 self.ui.startLSbtn.setText("Start Local Server")
                 self.ui.startLSbtn.setStyleSheet(""" QPushButton { background-color: rgb(12,129,213); color: white; font: 700 Arial; border-radius: 10px; padding: 5px 15px; } """)    
                 self.root_logger.info("Local Server Process terminated successfully.")
@@ -116,74 +126,36 @@ class LogoBotApp(QMainWindow):
             self.root_logger.info("Error: Bot token is required.")
             return
 
+        self.bot_thread = TelegramBotThread(token,self.localServerEnabled,self.root_logger,self.editLogo) 
+        self.bot_thread.start()
+        self.bot_thread.stop_signal.connect(self.on_bot_stopped) 
+
         self.ui.startBotBtn.setEnabled(False)
         self.ui.stopBotBtn.setEnabled(True)
-        #self.run_bot(token)
-        #asyncio.run(self.run_bot(token))
-        self.bot_thread = threading.Thread(target=self.run_bot, args=(token,), daemon=True)
-        self.bot_thread.start()
+
 
     def stop_bot(self):
         """
         Stop the Telegram bot.
         """  
-        #self.telegram_app.stop()   
-        if self.telegram_app and self.event_loop: 
-
-            self.event_loop.call_soon_threadsafe(self.event_loop.stop)
-            #self.event_loop.stop()
-            self.bot_thread.join()
-        #     self.append_log("Bot stopped.")
-            self.telegram_app = None
-            self.event_loop = None
+        if self.bot_thread:
+            self.bot_thread.stop()
             self.bot_thread = None
-        self.ui.startBotBtn.setEnabled(True)
-        self.ui.stopBotBtn.setEnabled(False)
+            self.ui.startBotBtn.setEnabled(True)
+            self.ui.stopBotBtn.setEnabled(False)           
 
-    def run_bot(self, token):
-        """Run the Telegram bot."""
-        try:
-            self.event_loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(self.event_loop)   
-            if self.localServerEnabled:      
-                    builder = TelegramApplication.builder()
-                    builder.token(token)
-                    builder.base_url(r'http://localhost:8081/bot')
-                    builder.base_file_url(r'http://localhost:8081/file/bot')
-                    builder.local_mode(local_mode = True)
-                    self.telegram_app = builder.build()       
 
-                    # Register handlers
-                    self.telegram_app.add_handler(MessageHandler(filters.VIDEO, self.video_handler))  # Use filters.VIDEO
-
-                    # Register error handler
-                    self.telegram_app.add_error_handler(self.error_handler)
-
-                    # Start the bot
-                    self.event_loop.run_until_complete(self.telegram_app.run_polling())
-        
-                    
-            else:
-               
-                self.telegram_app = TelegramApplication.builder().token(token).concurrent_updates(True).build()
-                self.telegram_app.add_handler(MessageHandler(filters.VIDEO, self.video_handler))
-                self.telegram_app.add_error_handler(self.error_handler)
-                self.event_loop.run_until_complete(self.telegram_app.run_polling())
-        except RuntimeError as e:
-            self.root_logger.info(f"Event Loop Closed {e}")
-    
-        
-            
-        # Error handler
-    async def error_handler(self,update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        self.root_logger.warning(f"Update {update} caused error {context.error}")
-
+    def on_bot_stopped(self):
+        # You can add actions to perform when the bot is stopped here
+        print("Bot stopped.")
     def closeEvent(self, event):
         #Override closeEvent
         if self.localServerEnabled:
             try:
-                self.stop_bot()
-                LS_PROCESS.terminate()        
+                if self.bot_thread:
+                    self.stop_bot()
+                LS_PROCESS.terminate()  
+                self.localServer_thread.join()      
                 self.localServerEnabled = False
                 self.ui.startLSbtn.setText("Start Local Server")
                 self.ui.startLSbtn.setStyleSheet(""" QPushButton { background-color: rgb(12,129,213); color: white; font: 700 Arial; border-radius: 10px; padding: 5px 15px; } """)    
@@ -191,7 +163,8 @@ class LogoBotApp(QMainWindow):
             except Exception as e:
                 self.root_logger.error(f"Error while killing the process: {e}")
         else:
-            self.stop_bot()
+            if self.bot_thread:
+                self.stop_bot()
         self.save_config()
         event.accept()
 
@@ -233,24 +206,138 @@ class LogoBotApp(QMainWindow):
         except (FileNotFoundError, json.JSONDecodeError):
             self.root_logger.info("No valid config file found. Using default config.")
 
+
+    def run_exe_as_thread(self,exe_path, args=None):
+        def run():
+            try:
+                # Build the command with arguments
+                command = [exe_path]
+                if args:
+                    command.extend(args)
+                # Start the subprocess and get the process object
+                process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE,creationflags=subprocess.CREATE_NO_WINDOW)     
+                global LS_PROCESS
+                LS_PROCESS = process
+                #atexit.register(LS_PROCESS.terminate)
+                out, err = process.communicate()
+
+                
+                #Log the FFmpeg output
+                if out:
+                    self.root_logger.info(out.decode('utf-8'))
+                if err:
+                    self.root_logger.error(err.decode('utf-8'))
+                # Save the process to be able to terminate it later
+                #return process
+            except Exception as e:
+                self.root_logger.info(f"Error: {e}")
+        # Create and start a thread
+        self.localServer_thread = threading.Thread(target=run)
+        self.localServer_thread.start()
+        
+        
+        #return thread # Return the process object to interact with it
+class SettingsDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.ui = Ui_Dialog()
+        self.ui.setupUi(self)
+        global API_ID,API_HASH
+        if API_ID:
+            self.ui.API_ID_Edit.setText(API_ID)
+        if API_HASH:
+            self.ui.HASH_Edit.setText(API_HASH)
+        # You can access widgets from the .ui file directly by their names
+        # Example: self.token_input is automatically created by loading the UI
+        
+        # Setup actions for the buttons
+        self.ui.buttonBox.accepted.connect(self.onClickOk)
+        self.ui.buttonBox.rejected.connect(self.reject)
+   
+
+    def onClickOk(self):
+        global API_ID,API_HASH
+        API_ID = self.ui.API_ID_Edit.text()
+        API_HASH = self.ui.HASH_Edit.text()
+        #print(API_HASH,API_ID)
+
+class TelegramBotThread(QThread):
+    #message_received = Signal(str)
+    stop_signal = Signal()
+    def __init__(self, token,localServerEnabled,root_logger,editLogo):
+        super().__init__()
+        self.token = token
+        self.editLogo = editLogo
+        self.root_logger = root_logger
+        self.telegram_app = None
+        self.localServerEnabled = localServerEnabled
+        self.loop = asyncio.new_event_loop() 
+       
+    def run(self):
+        asyncio.set_event_loop(self.loop)
+        if DEBUG:
+            self.loop.set_debug(True)
+        try:
+            if self.localServerEnabled:
+                self.application = ApplicationBuilder()
+                self.application.token(self.token)
+                self.application.base_url(r'http://localhost:8081/bot')
+                self.application.base_file_url(r'http://localhost:8081/file/bot')
+                self.application.local_mode(local_mode = True)
+                self.telegram_app = self.application.build() 
+                self.telegram_app.add_handler(MessageHandler(filters.VIDEO, self.video_handler))
+                self.telegram_app.add_error_handler(self.error_handler)
+                self.telegram_app.run_polling(close_loop=False)
+            else:
+                self.telegram_app = ApplicationBuilder().token(self.token).concurrent_updates(True).build()
+                self.telegram_app.add_handler(MessageHandler(filters.VIDEO, self.video_handler))
+                self.telegram_app.add_error_handler(self.error_handler)   
+                self.telegram_app.run_polling(close_loop=False)
+                
+        except asyncio.CancelledError as e:
+            self.root_logger.info(e) 
+        except RuntimeError as e:
+            self.root_logger.info(e) 
+        except Exception as e:
+            self.root_logger.info(e) 
+                        # Error handler
+    async def error_handler(self,update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+            self.root_logger.error(f"Update {update} caused error {context.error}")
+
+
+    def stop(self):
+        try:
+            self.loop.call_soon_threadsafe(self.loop.stop)
+        except asyncio.CancelledError as e:
+            self.root_logger.info(e) 
+        except RuntimeError as e:
+            self.root_logger.info(e) 
+        except httpx.ConnectError as e:
+           self.root_logger.info(f"Connection error: {e}")
+        
     async def video_handler(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle incoming video messages."""
+    
         video_file = await update.message.video.get_file()
-        file_name = f"Downloads/{video_file.file_id}.mp4"
-
+        file_name = f"Downloads/{video_file.file_unique_id}.mp4"
+ 
         await video_file.download_to_drive(file_name)
         output_name = f"Converted/{video_file.file_unique_id}_withLogo.mp4"
- 
+   
 
         self.root_logger.info(f"Processing video: {file_name}")
         output_video = self.burn_logo(file_name, output_name)
-
+     
         if output_video:
+          
             await update.message.reply_video(video=open(output_video, 'rb'))
             self.root_logger.info(f"Processed video sent: {output_video}")
+            
         else:
+            
             await update.message.reply_text("Error processing the video.")
             self.root_logger.info("Error processing the video.")
+           
 
     def burn_logo(self, input_video: str, output_name: str) -> str:
         """Overlay a logo on the video."""
@@ -271,7 +358,7 @@ class LogoBotApp(QMainWindow):
                     hasAudio = True 
             scaleFactor = self.editLogo.getScaleFactor()*2
             overlay_file = ffmpeg.input(self.editLogo.getLogoPath()).filter("scale", f"iw*{scaleFactor}", f"ih*{scaleFactor}")
-           
+            
 
             if w / h < 1:  # Vertical video
                 blurred_video = in_file.filter("scale", "1920x1080").filter("boxblur", 20)
@@ -302,59 +389,6 @@ class LogoBotApp(QMainWindow):
         except Exception as e:
             self.root_logger.error(f"Error processing video: {e}")
             return None
-
-class SettingsDialog(QDialog):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.ui = Ui_Dialog()
-        self.ui.setupUi(self)
-        global API_ID,API_HASH
-        if API_ID:
-            self.ui.API_ID_Edit.setText(API_ID)
-        if API_HASH:
-            self.ui.HASH_Edit.setText(API_HASH)
-        # You can access widgets from the .ui file directly by their names
-        # Example: self.token_input is automatically created by loading the UI
-        
-        # Setup actions for the buttons
-        self.ui.buttonBox.accepted.connect(self.onClickOk)
-        self.ui.buttonBox.rejected.connect(self.reject)
-   
-
-    def onClickOk(self):
-        global API_ID,API_HASH
-        API_ID = self.ui.API_ID_Edit.text()
-        API_HASH = self.ui.HASH_Edit.text()
-        #print(API_HASH,API_ID)
-
-def run_exe_as_thread(exe_path, args=None):
-    def run():
-        try:
-            # Build the command with arguments
-            command = [exe_path]
-            if args:
-                command.extend(args)
-            # Start the subprocess and get the process object
-            process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE,creationflags=subprocess.CREATE_NO_WINDOW)     
-            global LS_PROCESS
-            LS_PROCESS = process
-            out, err = process.communicate()
-
-            
-            #Log the FFmpeg output
-            if out:
-                logger.info(out.decode('utf-8'))
-            if err:
-                logger.error(err.decode('utf-8'))
-            # Save the process to be able to terminate it later
-            #return process
-        except Exception as e:
-            logger.info(f"Error: {e}")
-    # Create and start a thread
-    thread = threading.Thread(target=run)
-    thread.start()
-    #return thread # Return the process object to interact with it
-
 def resource_path():
     """ Get the absolute path to a resource, works for dev and PyInstaller """
     try:
@@ -382,14 +416,54 @@ class LogHandler(logging.Handler):
             cursor = self.text_edit.textCursor()
             cursor.movePosition(QTextCursor.End)
             self.text_edit.setTextCursor(cursor)
-            self.text_edit.update()
+            #self.text_edit.update()
         except Exception as e:
             print(f"Error in LogHandler.emit: {e}")
+
+def loggerConfig():
+    #global DEBUG
+
+    logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.DEBUG if DEBUG else logging.INFO)
+    
+    #logger = logging.getLogger(__name__)
+def terminate_process_by_name(name):
+    """
+    Check if a process with the given name is running and terminate it.
+    """
+    for process in psutil.process_iter(attrs=['pid', 'name']):
+        try:
+            # Match process name
+            if process.info['name'] == name:
+                print(f"Terminating process: {name} (PID: {process.info['pid']})")
+                psutil.Process(process.info['pid']).terminate()
+                print(f"Process {name} terminated successfully.")
+                return
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+            pass  # Ignore errors for processes that no longer exist or cannot be accessed
+    
+    print(f"No process named {name} found.")
+
+# Usage
+
 
 
 if __name__ == "__main__":
     
     try:
+        
+     
+        terminate_process_by_name("telegram-bot-api.exe")
+        #print(len(sys.argv))
+        if len(sys.argv) > 1:
+            if '--debug' in sys.argv:
+                DEBUG = True
+                #print("DEBUG ENABLED")
+                loggerConfig()
+            else:
+                loggerConfig()
+        else:
+            loggerConfig()
+                
 
         app = QApplication(sys.argv)
         #Create the splash screen with a logo image
@@ -402,17 +476,13 @@ if __name__ == "__main__":
         main_window = LogoBotApp()
         time.sleep(2)
         main_window.show()
-
-        sys.exit(app.exec())
+    
+        app.exec()
 
     except Exception as e:
-
+        
         logging.error("An error occurred:", exc_info=True)
-        # Catch any exception that occurs during the application setup or execution
-        print("An error occurred:", e)
-        # Optionally, log the traceback
         traceback.print_exc()
-        # Exit the application with a non-zero status to indicate an error
         sys.exit(1)
     
 
