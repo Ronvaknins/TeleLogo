@@ -31,7 +31,7 @@ https://youtu.be/mVoRyB6KjZ0
   
   | File        | Version   | Platform  | Arch      |
   |-------------|-----------|-----------|-----------|
-  | [TeleLogo-V1.0.0-x64.zip](https://github.com/Ronvaknins/TeleLogo/releases/download/v1.0.0/TeleLogo-V1.0.0-x64.zip) | 1.0.0     | Windows   | x64 |
+  | [TeleLogo-V1.0.0-x64.zip](https://github.com/Ronvaknins/TeleLogo/releases/download/v1.0.0/TeleLogo_v1.0.0_x64.zip) | 1.0.0     | Windows   | x64 |
  
 
 ## Requirements
