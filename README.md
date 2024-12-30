@@ -9,7 +9,7 @@
 <img src="https://github.com/user-attachments/assets/c891c7f7-06c1-42d3-8701-c3dd81f6114a" alt="TeleLogo Logo" width="500">
 </p>
 <div style="text-align: center;">
-TeleLogo is a user-friendly desktop application designed to streamline the process of adding logos to video files. It utilizes a Telegram bot to receive video files from users, processes the files to include the specified logo, and then sends the modified video back to the user. The app provides flexibility for operating on Telegram servers or running locally for larger file sizes.
+TeleLogo is a user-friendly desktop application designed to streamline the process of adding logo (watermark) to video files. It utilizes a Telegram bot to receive video files from users, processes the files to include the specified logo, and then sends the modified video back to the user. The app provides flexibility for operating on Telegram servers or running locally for larger file sizes.
 </div>
 Watch the demo:
 https://youtu.be/mVoRyB6KjZ0
