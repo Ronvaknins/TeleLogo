@@ -11,9 +11,11 @@ from PySide6.QtWidgets import QApplication, QMainWindow, QDialog, QMainWindow, Q
 from PySide6.QtCore import QMetaObject,Qt,QTimer,Signal,QThread
 from PySide6.QtGui import QTextCursor,QPixmap
 from pathlib import Path
+import httpcore
 import psutil
 from telegram import Update
 import httpx
+import telegram
 #from telegram.ext import Application as TelegramApplication, MessageHandler, filters, ContextTypes,Updater
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler,filters
 import subprocess
@@ -140,6 +142,8 @@ class LogoBotApp(QMainWindow):
         """  
         if self.bot_thread:
             self.bot_thread.stop()
+            while (self.bot_thread.telegram_app._running):
+                continue
             self.bot_thread = None
             self.ui.startBotBtn.setEnabled(True)
             self.ui.stopBotBtn.setEnabled(False)           
@@ -167,7 +171,6 @@ class LogoBotApp(QMainWindow):
                 self.stop_bot()
         self.save_config()
         event.accept()
-
     def save_config(self):
         """Save config to a file."""
         try:
@@ -205,7 +208,6 @@ class LogoBotApp(QMainWindow):
                 self.root_logger.info("Config File Loaded")
         except (FileNotFoundError, json.JSONDecodeError):
             self.root_logger.info("No valid config file found. Using default config.")
-
 
     def run_exe_as_thread(self,exe_path, args=None):
         def run():
@@ -286,34 +288,45 @@ class TelegramBotThread(QThread):
                 self.application.local_mode(local_mode = True)
                 self.telegram_app = self.application.build() 
                 self.telegram_app.add_handler(MessageHandler(filters.VIDEO, self.video_handler))
-                self.telegram_app.add_error_handler(self.error_handler)
-                self.telegram_app.run_polling(close_loop=False)
+                #self.telegram_app.add_error_handler(self.error_handler)
+                self.telegram_app.run_polling(close_loop=False,timeout=20)
             else:
                 self.telegram_app = ApplicationBuilder().token(self.token).concurrent_updates(True).build()
                 self.telegram_app.add_handler(MessageHandler(filters.VIDEO, self.video_handler))
-                self.telegram_app.add_error_handler(self.error_handler)   
-                self.telegram_app.run_polling(close_loop=False)
+                #self.telegram_app.add_error_handler(self.error_handler)   
+                self.telegram_app.run_polling(close_loop=False,timeout=20)
                 
         except asyncio.CancelledError as e:
             self.root_logger.info(e) 
         except RuntimeError as e:
             self.root_logger.info(e) 
+        except httpcore.ConnectError as e:
+            self.root_logger.info(f"Connection error occurred: {e}")
+        except httpx.ConnectError as e:
+           self.root_logger.info(f"Connection error: {e}")
         except Exception as e:
             self.root_logger.info(e) 
                         # Error handler
     async def error_handler(self,update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-            self.root_logger.error(f"Update {update} caused error {context.error}")
+            self.root_logger.error(f"Update {update} caused error")
 
 
     def stop(self):
         try:
+        
+            #self.loop.call_soon_threadsafe(self.telegram_app.stop)
             self.loop.call_soon_threadsafe(self.loop.stop)
+            #await asyncio.sleep(10)
         except asyncio.CancelledError as e:
             self.root_logger.info(e) 
-        except RuntimeError as e:
-            self.root_logger.info(e) 
+        except telegram.error.NetworkError as e:
+            self.root_logger.info(f"Connection error occurred: {e}")
+        except httpcore.ConnectError as e:
+            self.root_logger.info(f"Connection error occurred: {e}")
         except httpx.ConnectError as e:
            self.root_logger.info(f"Connection error: {e}")
+        except RuntimeError as e:
+            self.root_logger.info(e) 
         
     async def video_handler(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle incoming video messages."""
